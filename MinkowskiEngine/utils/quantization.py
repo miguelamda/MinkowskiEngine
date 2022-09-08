@@ -23,7 +23,7 @@
 # of the code.
 import torch
 import numpy as np
-from collections import Sequence
+from collections.abc import Sequence
 import MinkowskiEngineBackend._C as MEB
 from typing import Union, Tuple
 from MinkowskiCommon import convert_to_int_list
@@ -281,9 +281,9 @@ def sparse_quantize(
             )
         else:
             assert (
-                not discrete_coordinates.is_cuda()
+                not discrete_coordinates.is_cuda
             ), "Quantization with label requires cpu tensors."
-            assert not labels.is_cuda(), "Quantization with label requires cpu tensors."
+            assert not labels.is_cuda, "Quantization with label requires cpu tensors."
             unique_map, inverse_map, colabels = MEB.quantize_label_th(
                 discrete_coordinates, labels, ignore_label
             )
