@@ -267,24 +267,29 @@ if __name__ == "__main__":
     )
     features = torch.rand((len(coordinates), 3), device=device)
     for i in range(10):
-        optimizer.zero_grad()
+        nvtx.range_push("Iteration "+str(i))
+        with torch.autograd.profiler.emit_nvtx():
+            optimizer.zero_grad()
 
-        input = ME.SparseTensor(features, coordinates, device=device)
-        dummy_label = torch.randint(0, N_labels, (3,), device=device)
+            nvtx.range_push("Gen Data")
+            input = ME.SparseTensor(features, coordinates, device=device)
+            dummy_label = torch.randint(0, N_labels, (3,), device=device)
+            nvtx.range_pop()
 
-        # Forward
-        nvtx.range_push("Forward")
-        output = net(input)
-        nvtx.range_pop()
+            # Forward
+            nvtx.range_push("Forward")
+            output = net(input)
 
-        # Loss
-        loss = criterion(output.F, dummy_label)
-        print("Iteration: ", i, ", Loss: ", loss.item())
+            # Loss
+            loss = criterion(output.F, dummy_label)
+            print("Iteration: ", i, ", Loss: ", loss.item())
+            nvtx.range_pop()
 
-        # Gradient
-        nvtx.range_push("Backward")
-        loss.backward()
-        optimizer.step()
+            # Gradient
+            nvtx.range_push("Backward")
+            loss.backward()
+            optimizer.step()
+            nvtx.range_pop()
         nvtx.range_pop()
 
     # Saving and loading a network

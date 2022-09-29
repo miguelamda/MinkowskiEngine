@@ -599,41 +599,46 @@ def train(net, dataloader, device, config):
     # val_iter = iter(val_dataloader)
     logging.info(f"LR: {scheduler.get_lr()}")
     for i in range(start_iter, config.max_iter):
-        nvtx.range_push('Data Load')
-        s = time()
-        data_dict = train_iter.next()
-        d = time() - s
+        nvtx.range_push("Iteration "+str(i))
+        with torch.autograd.profiler.emit_nvtx():
+            optimizer.zero_grad()
+            
+            nvtx.range_push('Data Load')
+            s = time()
+            data_dict = train_iter.next()
+            d = time() - s
 
-        optimizer.zero_grad()
-        sin = ME.SparseTensor(
-            features=torch.ones(len(data_dict["coords"]), 1),
-            coordinates=data_dict["coords"].int(),
-            device=device,
-        )
+            # optimizer.zero_grad()
+            sin = ME.SparseTensor(
+                features=torch.ones(len(data_dict["coords"]), 1),
+                coordinates=data_dict["coords"].int(),
+                device=device,
+            )
 
-        # Generate target sparse tensor
-        target_key = sin.coordinate_map_key
-        nvtx.range_pop()
+            # Generate target sparse tensor
+            target_key = sin.coordinate_map_key
+            nvtx.range_pop()
 
-        nvtx.range_push('Forward')
-        out_cls, targets, sout, means, log_vars, zs = net(sin, target_key)
-        num_layers, BCE = len(out_cls), 0
-        losses = []
-        for out_cl, target in zip(out_cls, targets):
-            curr_loss = crit(out_cl.F.squeeze(), target.type(out_cl.F.dtype).to(device))
-            losses.append(curr_loss.item())
-            BCE += curr_loss / num_layers
+            nvtx.range_push('Forward')
+            out_cls, targets, sout, means, log_vars, zs = net(sin, target_key)
+            num_layers, BCE = len(out_cls), 0
+            losses = []
+            for out_cl, target in zip(out_cls, targets):
+                curr_loss = crit(out_cl.F.squeeze(), target.type(out_cl.F.dtype).to(device))
+                losses.append(curr_loss.item())
+                BCE += curr_loss / num_layers
 
-        KLD = -0.5 * torch.mean(
-            torch.mean(1 + log_vars.F - means.F.pow(2) - log_vars.F.exp(), 1)
-        )
-        loss = KLD + BCE
-        nvtx.range_pop()
+            KLD = -0.5 * torch.mean(
+                torch.mean(1 + log_vars.F - means.F.pow(2) - log_vars.F.exp(), 1)
+            )
+            loss = KLD + BCE
+            nvtx.range_pop()
 
-        nvtx.range_push('Backward')
-        loss.backward()
-        optimizer.step()
-        t = time() - s
+            nvtx.range_push('Backward')
+            loss.backward()
+            optimizer.step()
+            t = time() - s
+            nvtx.range_pop()
         nvtx.range_pop()
 
         if i % config.stat_freq == 0:

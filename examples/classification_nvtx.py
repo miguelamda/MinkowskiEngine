@@ -34,7 +34,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 from torch.cuda import nvtx
-import nvidia_dlprof_pytorch_nvtx
+#import nvidia_dlprof_pytorch_nvtx
 
 import MinkowskiEngine as ME
 from examples.pointnet import (
@@ -334,18 +334,24 @@ def test(net, device, config, phase="val"):
     net.eval()
     labels, preds = [], []
     with torch.no_grad():
+        nvtx.range_push("Test")
         for batch in data_loader:
+            nvtx.range_push("Data load")
             input = create_input_batch(
                 batch,
                 is_minknet,
                 device=device,
                 quantization_size=config.voxel_size,
             )
+            nvtx.range_pop()
+            nvtx.range_push("Inference")
             logit = net(input)
+            nvtx.range_pop()
             pred = torch.argmax(logit, 1)
             labels.append(batch["labels"].cpu().numpy())
             preds.append(pred.cpu().numpy())
             torch.cuda.empty_cache()
+        nvtx.range_pop()
     return metrics.accuracy_score(np.concatenate(labels), np.concatenate(preds))
 
 
@@ -388,7 +394,7 @@ def train(net, device, config):
     best_metric = 0
     net.train()
 
-    nvidia_dlprof_pytorch_nvtx.init()
+    #nvidia_dlprof_pytorch_nvtx.init()
     
     for i in range(config.max_steps):
         nvtx.range_push("Iteration "+str(i))

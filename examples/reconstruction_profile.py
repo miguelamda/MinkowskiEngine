@@ -560,48 +560,53 @@ def train(net, dataloader, device, config):
     # val_iter = iter(val_dataloader)
     logging.info(f"LR: {scheduler.get_lr()}")
     for i in range(config.max_iter):
-        nvtx.range_push("Data Load")
-        s = time()
-        data_dict = train_iter.next()
-        d = time() - s
+        nvtx.range_push("Iteration "+str(i))
+        with torch.autograd.profiler.emit_nvtx():
+            optimizer.zero_grad()
+            
+            nvtx.range_push("Data Load")
+            s = time()
+            data_dict = train_iter.next()
+            d = time() - s
 
-        optimizer.zero_grad()
-        init_coords = torch.zeros((config.batch_size, 4), dtype=torch.int)
-        init_coords[:, 0] = torch.arange(config.batch_size)
+            # optimizer.zero_grad()
+            init_coords = torch.zeros((config.batch_size, 4), dtype=torch.int)
+            init_coords[:, 0] = torch.arange(config.batch_size)
 
-        in_feat = torch.zeros((config.batch_size, in_nchannel))
-        in_feat[torch.arange(config.batch_size), data_dict["labels"]] = 1
+            in_feat = torch.zeros((config.batch_size, in_nchannel))
+            in_feat[torch.arange(config.batch_size), data_dict["labels"]] = 1
 
-        sin = ME.SparseTensor(
-            features=in_feat,
-            coordinates=init_coords,
-            tensor_stride=config.resolution,
-            device=device,
-        )
+            sin = ME.SparseTensor(
+                features=in_feat,
+                coordinates=init_coords,
+                tensor_stride=config.resolution,
+                device=device,
+            )
 
-        # Generate target sparse tensor
-        cm = sin.coordinate_manager
-        target_key, _ = cm.insert_and_map(
-            ME.utils.batched_coordinates(data_dict["xyzs"]).to(device),
-            string_id="target",
-        )
-        nvtx.range_pop()
+            # Generate target sparse tensor
+            cm = sin.coordinate_manager
+            target_key, _ = cm.insert_and_map(
+                ME.utils.batched_coordinates(data_dict["xyzs"]).to(device),
+                string_id="target",
+            )
+            nvtx.range_pop()
 
-        nvtx.range_push('Forward')
-        # Generate from a dense tensor
-        out_cls, targets, sout = net(sin, target_key)
-        num_layers, loss = len(out_cls), 0
-        losses = []
-        for out_cl, target in zip(out_cls, targets):
-            curr_loss = crit(out_cl.F.squeeze(), target.type(out_cl.F.dtype).to(device))
-            losses.append(curr_loss.item())
-            loss += curr_loss / num_layers
-        nvtx.range_pop()
+            nvtx.range_push('Forward')
+            # Generate from a dense tensor
+            out_cls, targets, sout = net(sin, target_key)
+            num_layers, loss = len(out_cls), 0
+            losses = []
+            for out_cl, target in zip(out_cls, targets):
+                curr_loss = crit(out_cl.F.squeeze(), target.type(out_cl.F.dtype).to(device))
+                losses.append(curr_loss.item())
+                loss += curr_loss / num_layers
+            nvtx.range_pop()
 
-        nvtx.range_push('Backward')
-        loss.backward()
-        optimizer.step()
-        t = time() - s
+            nvtx.range_push('Backward')
+            loss.backward()
+            optimizer.step()
+            t = time() - s
+            nvtx.range_pop()
         nvtx.range_pop()
 
         if i % config.stat_freq == 0:
@@ -719,4 +724,4 @@ if __name__ == "__main__":
         checkpoint = torch.load(config.weights)
         net.load_state_dict(checkpoint["state_dict"])
 
-        visualize(net, dataloader, device, config)
+        #visualize(net, dataloader, device, config)

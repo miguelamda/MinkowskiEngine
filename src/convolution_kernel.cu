@@ -363,6 +363,9 @@ void ConvolutionForwardKernelGPU(
       size_t const num_div = (num_grid + MAX_GRID - 1) / MAX_GRID;
       size_t const step = (n_active_in_volume + num_div - 1) / num_div;
 
+      //cudaStream_t stream;
+      //cudaStreamCreate(&stream);
+
       for (size_t s = 0; s < num_div; s++) {
         size_t const offset = step * s;
         size_t const remainder = n_active_in_volume - offset;
@@ -432,6 +435,9 @@ void ConvolutionForwardKernelGPU(
       CUDA_CHECK(cudaDeviceSynchronize());
 #endif
       CUDA_CHECK(cudaGetLastError());
+
+      //cudaStreamDestroy(stream);
+
     }
   } else { // copy gemm
     Itype const max_numel = kernel_map.max_size();

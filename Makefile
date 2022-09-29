@@ -1,6 +1,6 @@
 ###############################################################################
 # Uncomment for debugging
-# DEBUG := 1
+DEBUG := 1
 # Pretty build
 Q ?= @
 
@@ -8,7 +8,7 @@ Q ?= @
 # CPU_ONLY := 1
 
 CXX ?= g++
-PYTHON ?= python
+PYTHON ?= python3
 
 EXTENSION_NAME := minkowski
 
@@ -67,25 +67,75 @@ endif
 
 SRC_DIR := ./src
 OBJ_DIR := ./objs
-CPP_SRCS := $(wildcard $(SRC_DIR)/*.cpp)
-CU_SRCS := $(wildcard $(SRC_DIR)/*.cu)
-OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(CPP_SRCS))
-CU_OBJS := $(patsubst $(SRC_DIR)/%.cu,$(OBJ_DIR)/cuda/%.o,$(CU_SRCS))
+#CPP_SRCS := $(wildcard $(SRC_DIR)/*.cpp)
+#CU_SRCS := $(wildcard $(SRC_DIR)/*.cu)
+       
+       
+CPP_SRCS := math_functions_cpu.cpp \
+			quantization.cpp \
+			direct_max_pool.cpp
+
+CU_SRCS := math_functions_gpu.cu \
+			coordinate_map_manager.cu \
+			coordinate_map_gpu.cu \
+			convolution_kernel.cu \
+			convolution_gpu.cu \
+			convolution_transpose_gpu.cu \
+			pooling_avg_kernel.cu \
+			pooling_max_kernel.cu \
+			local_pooling_gpu.cu \
+			local_pooling_transpose_gpu.cu \
+			global_pooling_gpu.cu \
+			broadcast_kernel.cu \
+			broadcast_gpu.cu \
+			pruning_gpu.cu \
+			interpolation_gpu.cu \
+			spmm.cu \
+			gpu.cu
+
+#OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(CPP_SRCS))
+#CU_OBJS := $(patsubst $(SRC_DIR)/%.cu,$(OBJ_DIR)/cuda/%.o,$(CU_SRCS))
+
+OBJS := $(OBJ_DIR)/math_functions_cpu.o \
+		$(OBJ_DIR)/quantization.o \
+		$(OBJ_DIR)/direct_max_pool.o
+
+CU_OBJS := $(OBJ_DIR)/cuda/math_functions_gpu.o \
+			$(OBJ_DIR)/cuda/coordinate_map_manager.o \
+			$(OBJ_DIR)/cuda/coordinate_map_gpu.o \
+			$(OBJ_DIR)/cuda/convolution_kernel.o \
+			$(OBJ_DIR)/cuda/convolution_gpu.o \
+			$(OBJ_DIR)/cuda/convolution_transpose_gpu.o \
+			$(OBJ_DIR)/cuda/pooling_avg_kernel.o \
+			$(OBJ_DIR)/cuda/pooling_max_kernel.o \
+			$(OBJ_DIR)/cuda/local_pooling_gpu.o \
+			$(OBJ_DIR)/cuda/local_pooling_transpose_gpu.o \
+			$(OBJ_DIR)/cuda/global_pooling_gpu.o \
+			$(OBJ_DIR)/cuda/broadcast_kernel.o \
+			$(OBJ_DIR)/cuda/broadcast_gpu.o \
+			$(OBJ_DIR)/cuda/pruning_gpu.o \
+			$(OBJ_DIR)/cuda/interpolation_gpu.o \
+			$(OBJ_DIR)/cuda/spmm.o \
+			$(OBJ_DIR)/cuda/gpu.o
+
 STATIC_LIB := $(OBJ_DIR)/lib$(EXTENSION_NAME).a
 
 # We will also explicitly add stdc++ to the link target.
 LIBRARIES := stdc++ c10 caffe2 torch torch_python _C
 ifneq ($(CPU_ONLY), 1)
 	LIBRARIES += cudart cublas cusparse caffe2_gpu c10_cuda
-	CUDA_ARCH := -gencode arch=compute_30,code=sm_30 \
-			-gencode arch=compute_35,code=sm_35 \
-			-gencode=arch=compute_50,code=sm_50 \
-			-gencode=arch=compute_52,code=sm_52 \
-			-gencode=arch=compute_60,code=sm_60 \
-			-gencode=arch=compute_61,code=sm_61 \
-			-gencode=arch=compute_70,code=sm_70 \
-			-gencode=arch=compute_75,code=sm_75 \
+	CUDA_ARCH := -gencode=arch=compute_75,code=sm_75 \
 			-gencode=arch=compute_75,code=compute_75
+	# mdelamor
+	# CUDA_ARCH := -gencode arch=compute_30,code=sm_30 \
+	# 		-gencode arch=compute_35,code=sm_35 \
+	# 		-gencode=arch=compute_50,code=sm_50 \
+	# 		-gencode=arch=compute_52,code=sm_52 \
+	# 		-gencode=arch=compute_60,code=sm_60 \
+	# 		-gencode=arch=compute_61,code=sm_61 \
+	# 		-gencode=arch=compute_70,code=sm_70 \
+	# 		-gencode=arch=compute_75,code=sm_75 \
+	# 		-gencode=arch=compute_75,code=compute_75
 endif
 
 # BLAS configuration: mkl, atlas, open, blas
@@ -140,7 +190,7 @@ COMMON_FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) \
 	     -D_GLIBCXX_USE_CXX11_ABI=$(WITH_ABI)
 
 CXXFLAGS += -fopenmp -fPIC -fwrapv -std=c++14 $(COMMON_FLAGS) $(WARNINGS)
-NVCCFLAGS += -std=c++14 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
+NVCCFLAGS += -std=c++14 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS) --extended-lambda --expt-relaxed-constexpr -Xcompiler=-fno-gnu-unique
 LINKFLAGS += -pthread -fPIC $(WARNINGS) -Wl,-rpath=$(PYTHON_LIB_DIR) -Wl,--no-as-needed -Wl,--sysroot=/
 LDFLAGS += $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir)) \
 	   $(foreach library,$(LIBRARIES),-l$(library))
@@ -149,11 +199,13 @@ ifeq ($(CPU_ONLY), 1)
 	ALL_OBJS := $(OBJS)
 	CXXFLAGS += -DCPU_ONLY
 else
-	ALL_OBJS := $(OBJS) $(CU_OBJS)
+	# mdelamor
+	ALL_OBJS :=  $(CU_OBJS) $(OBJS)
 endif
 
 all: $(STATIC_LIB)
 	$(RM) -rf build dist
+	# sudo -E python3 setupMakefile.py install --force
 
 $(OBJ_DIR):
 	@ mkdir -p $@

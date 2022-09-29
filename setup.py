@@ -285,8 +285,8 @@ else:
     print("Using the default compiler")
 
 if debug:
-    CC_FLAGS += ["-g", "-DDEBUG"]
-    NVCC_FLAGS += ["-g", "-DDEBUG", "-Xcompiler=-fno-gnu-unique"]
+    CC_FLAGS += ["-g", "-O0", "-DDEBUG"]
+    NVCC_FLAGS += ["-g", "-G", "-O0", "-DDEBUG", "-Xcompiler=-fno-gnu-unique"]
 else:
     CC_FLAGS += ["-O3"]
     NVCC_FLAGS += ["-O3", "-Xcompiler=-fno-gnu-unique"]

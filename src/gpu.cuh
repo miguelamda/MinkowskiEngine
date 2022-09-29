@@ -174,7 +174,7 @@ constexpr uint32_t CUDA_NUM_THREADS = 128;
 
 constexpr uint32_t SHARED_BLOCK_SIZE = 32;
 
-constexpr uint32_t MAX_GRID = 65535;
+constexpr uint32_t MAX_GRID = 65535; // 4294836225;   // Miguel 65535
 
 inline int GET_BLOCKS(const uint32_t N, const uint32_t THREADS) {
   return std::max((N + THREADS - 1) / THREADS, uint32_t(1));
